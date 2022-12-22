@@ -1,4 +1,4 @@
-class StatusNotUpdated(Exception):
-    """При запросе к API яндекс.Домашки не был получен новый статус."""
+class NoNewStatus(Exception):
+    """Вызывается, когда в ответе от API нет обновлений статуса дз."""
 
     pass

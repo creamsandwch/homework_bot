@@ -8,7 +8,7 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
-from exceptions import StatusNotUpdated
+from exceptions import NoNewStatus
 
 
 log_format = (
@@ -20,15 +20,15 @@ formatter = logging.Formatter(
 )
 
 console_logger = logging.StreamHandler()
-console_logger.setLevel(logging.DEBUG)
+console_logger.setLevel(logging.INFO)
 
 file_logger = logging.FileHandler('logs.log')
-file_logger.setLevel(logging.INFO)
+file_logger.setLevel(logging.DEBUG)
 
 logging.basicConfig(
     handlers=(console_logger, file_logger),
     format=log_format,
-    level=logging.ERROR,
+    level=logging.DEBUG,
 )
 
 
@@ -117,7 +117,7 @@ def check_response(response: dict) -> list:
     homeworks = response.get('homeworks')
 
     if not homeworks:
-        raise StatusNotUpdated('В ответе от API нет новых статусов домашки.')
+        raise NoNewStatus('В ответе от API нет новых статусов домашки.')
     logging.info(
         'Из ответа API получен список ДЗ '
         f'из {len(homeworks)} объектов.'
@@ -163,9 +163,9 @@ def main():
             ya_api_response = get_api_answer(timestamp)
             last_homework = check_response(ya_api_response)
             message = parse_status(last_homework)
-        except StatusNotUpdated as error:
-            logging.debug(f'{error}')
-            message = f'{error}'
+        except NoNewStatus as info:
+            logging.info(f'Статус дз: {info}')
+            message = cached_message
         except Exception as error:
             logging.error(f'Сбой: {error}')
             message = f'{error}'
