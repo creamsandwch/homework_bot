@@ -9,22 +9,25 @@ import telegram
 from dotenv import load_dotenv
 
 
-log_format = '%(asctime)s, %(levelname)s, %(lineno)d, %(message)s, %(name)s'
+log_format = (
+    '%(asctime)s, %(levelname)s, %(funcName)s, '
+    '%(lineno)d, %(message)s, %(name)s')
 
 formatter = logging.Formatter(
     fmt=log_format,
 )
 
+console_logger = logging.StreamHandler()
+console_logger.setLevel(logging.INFO)
+
+file_logger = logging.FileHandler('logs.log')
+file_logger.setLevel(logging.DEBUG)
+
 logging.basicConfig(
+    handlers=(console_logger, file_logger),
     format=log_format,
-    level=logging.INFO,
+    level=logging.DEBUG,
 )
-
-logger = logging.StreamHandler()
-logger.setLevel(logging.INFO)
-logger.setFormatter(formatter)
-
-logging.getLogger(__name__).addHandler(logger)
 
 
 load_dotenv()
@@ -61,16 +64,16 @@ def check_tokens():
     logging.info('Все токены загружены в виртуальное окружение.')
 
 
-def send_message(bot, message):
+def send_message(bot: telegram.Bot, message: str):
     """Отправляет сообщение от бота в чат."""
     try:
         bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+        logging.debug('Бот отправил сообщение.')
     except Exception as error:
-        logging.error(f'{error}')
-    logging.debug('Бот отправил сообщение.')
+        logging.error(f'{error}: ошибка при отправке сообщения ботом.')
 
 
-def get_api_answer(timestamp):
+def get_api_answer(timestamp: int) -> dict:
     """Получает ответ от API яндекс.домашки в формате .json."""
     params = {'from_date': int(timestamp)}
     try:
@@ -84,6 +87,7 @@ def get_api_answer(timestamp):
             f'{error}: Что-то пошло не так при доступе к API яндекс.Домашки'
         )
     if response.status_code != HTTPStatus.OK:
+
         raise Exception(
             'Ошибка при доступе к API яндекс.Домашки. '
             f'status_code {response.status_code}'
@@ -96,19 +100,23 @@ def get_api_answer(timestamp):
     return response
 
 
-def check_response(response):
+def check_response(response: dict) -> list:
     """Получаем из ответа API яндекс.Домашки последнюю домашнюю работу."""
     if type(response) != dict:
-        raise TypeError
-    if 'homeworks' not in response:
-        raise KeyError
-    if type(response.get('homeworks')) != list:
-        raise TypeError
-    homeworks = response.get('homeworks')
-    if not homeworks:
-        raise Exception(
-            'Список домашних заданий пуст.'
+        raise TypeError(
+            'Некорретный тип данных объекта response, '
+            'переданного в check_response.'
         )
+    if 'homeworks' not in response:
+        raise KeyError('Нет ключа "homeworks" в ответе от API.')
+    if type(response.get('homeworks')) != list:
+        raise TypeError('Некорректный тип данных объекта homeworks.')
+
+    homeworks = response.get('homeworks')
+
+    if not homeworks:
+        logging.debug('В ответе от API нет новых статусов домашки.')
+        raise Exception('В ответе от API нет новых статусов домашки.')
     logging.info(
         'Из ответа API получен список ДЗ '
         f'из {len(homeworks)} объектов.'
@@ -118,9 +126,8 @@ def check_response(response):
 
 def parse_status(homework):
     """Получаем статус домашнего задания для сообщения бота."""
-    if homework is None:
-        raise Exception('Нет новых статусов.')
     if not homework.get('homework_name'):
+        logging.error('Нет ключа "homework_name" в словаре "homework".')
         raise KeyError('Нет ключа "homework_name" в словаре "homework".')
 
     homework_name = homework.get('homework_name')
@@ -128,7 +135,7 @@ def parse_status(homework):
 
     if status not in HOMEWORK_VERDICTS:
         raise Exception(
-            f'Неожиданный статус домашнего задания {homework}. '
+            f'Неожиданный статус домашнего задания "{homework_name}". '
             'Статус отсутствует в словаре HOMEWORK_VERDICTS'
         )
     verdict = HOMEWORK_VERDICTS.get(status)
@@ -147,19 +154,21 @@ def main():
         sys.exit()
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
+    cached_message = ''
 
     while True:
         try:
             timestamp = time.time()
-            timestamp = 1669074950
             ya_api_response = get_api_answer(timestamp)
             last_homework = check_response(ya_api_response)
             message = parse_status(last_homework)
         except Exception as error:
-            message = f'Сбой в работе программы: {error}'
-            type(f'message type is {message}')
+            logging.info(f'Статус проверки: {error}')
+            message = f'{error}'
         finally:
-            send_message(bot, message)
+            if message != cached_message:
+                cached_message = message
+                send_message(bot, message)
             time.sleep(RETRY_PERIOD)
 
 
