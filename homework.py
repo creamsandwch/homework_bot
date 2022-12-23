@@ -3,7 +3,6 @@ import time
 import logging
 import sys
 from http import HTTPStatus
-import json
 
 import requests
 import telegram
@@ -90,13 +89,12 @@ def get_api_answer(timestamp: int) -> dict:
     )
 
     try:
-        json.loads(response)
-    except ValueError as error:
+        response = response.json()
+    except Exception as error:
         logging.error(
-            f'{error}: Невалидный ответ от API. '
-            'Строка не может быть декодирована в .json.'
+            f'{error}: Невалидный ответ от API: '
+            'ответ не может быть декодирован в .json.'
         )
-    response = response.json()
 
     return response
 
@@ -160,6 +158,7 @@ def main():
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     cached_message = ''
+    ya_api_response = ''
     timestamp = int(time.time())
 
     # изменил получение timestamp, такой вариант присылает сообщения.
