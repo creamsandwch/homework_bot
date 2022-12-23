@@ -41,11 +41,9 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 
-ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
-
-HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
-
+ENDPOINT = settings.ENDPOINT
 HOMEWORK_VERDICTS = settings.HOMEWORK_VERDICTS
+HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
 
 def check_tokens():
@@ -158,9 +156,6 @@ def main():
     cached_message = ''
     ya_api_response = ''
     timestamp = int(time.time())
-
-    # изменил получение timestamp, такой вариант присылает сообщения.
-    # старый вариант не присылал.
 
     while True:
         try:
