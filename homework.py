@@ -12,6 +12,8 @@ import settings
 from exceptions import NoNewStatus
 
 
+RETRY_PERIOD = settings.RETRY_PERIOD
+
 log_format = (
     '%(asctime)s, %(levelname)s, %(funcName)s, '
     '%(lineno)d, %(message)s, %(name)s')
@@ -181,7 +183,7 @@ def main():
                 send_message(bot, message)
             if ya_api_response:
                 timestamp = ya_api_response.get('current_date')
-            time.sleep(settings.RETRY_PERIOD)
+            time.sleep(RETRY_PERIOD)
 
 
 if __name__ == '__main__':
