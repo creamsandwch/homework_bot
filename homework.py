@@ -3,11 +3,13 @@ import time
 import logging
 import sys
 from http import HTTPStatus
+import json
 
 import requests
 import telegram
 from dotenv import load_dotenv
 
+import settings
 from exceptions import NoNewStatus
 
 
@@ -38,7 +40,6 @@ TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
 
-RETRY_PERIOD = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
 
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
@@ -52,18 +53,7 @@ HOMEWORK_VERDICTS = {
 
 def check_tokens():
     """Проверяет доступность токенов в виртуальном окружении."""
-    tokens = [
-        (PRACTICUM_TOKEN, 'PRACTICUM_TOKEN'),
-        (TELEGRAM_TOKEN, 'TELEGRAM_TOKEN'),
-        (TELEGRAM_CHAT_ID, 'TELEGRAM_CHAT_ID'),
-    ]
-    for token in tokens:
-        if not token[0]:
-            raise SystemExit(
-                f'Токен {token[1]} недоступен. '
-                'Выход из программы.'
-            )
-    logging.info('Все токены загружены в виртуальное окружение.')
+    return all([TELEGRAM_CHAT_ID, TELEGRAM_TOKEN, PRACTICUM_TOKEN])
 
 
 def send_message(bot: telegram.Bot, message: str):
@@ -88,8 +78,8 @@ def get_api_answer(timestamp: int) -> dict:
         logging.error(
             f'{error}: Что-то пошло не так при доступе к API яндекс.Домашки'
         )
-    if response.status_code != HTTPStatus.OK:
 
+    if response.status_code != HTTPStatus.OK:
         raise Exception(
             'Ошибка при доступе к API яндекс.Домашки. '
             f'status_code {response.status_code}'
@@ -98,7 +88,16 @@ def get_api_answer(timestamp: int) -> dict:
         'Запрос от API яндекс.Домашки получен. '
         f'status_code: {response.status_code}'
     )
+
+    try:
+        json.loads(response)
+    except ValueError as error:
+        logging.error(
+            f'{error}: Невалидный ответ от API. '
+            'Строка не может быть декодирована в .json.'
+        )
     response = response.json()
+
     return response
 
 
@@ -109,10 +108,15 @@ def check_response(response: dict) -> list:
             'Некорретный тип данных объекта response, '
             'переданного в check_response.'
         )
-    if 'homeworks' not in response:
-        raise KeyError('Нет ключа "homeworks" в ответе от API.')
+    for key in ['homeworks', 'current_date']:
+        if key not in response:
+            raise KeyError(f'Нет ключа "{key}" в ответе от API.')
+
     if type(response.get('homeworks')) != list:
         raise TypeError('Некорректный тип данных объекта homeworks.')
+
+    if type(response.get('current_date')) != int:
+        raise TypeError('Некорректный тип данных обьекта current_date')
 
     homeworks = response.get('homeworks')
 
@@ -148,18 +152,21 @@ def parse_status(homework):
 
 def main():
     """Основная логика работы бота."""
-    try:
-        check_tokens()
-    except SystemExit as error:
-        logging.critical(f'{error}: Один или несколько токенов недоступны.')
+    if check_tokens():
+        logging.info('Все токены загружены в виртуальное окружение.')
+    else:
+        logging.critical('Один или несколько токенов недоступны.')
         sys.exit()
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     cached_message = ''
+    timestamp = int(time.time())
+
+    # изменил получение timestamp, такой вариант присылает сообщения.
+    # старый вариант не присылал.
 
     while True:
         try:
-            timestamp = time.time()
             ya_api_response = get_api_answer(timestamp)
             last_homework = check_response(ya_api_response)
             message = parse_status(last_homework)
@@ -173,7 +180,9 @@ def main():
             if message != cached_message:
                 cached_message = message
                 send_message(bot, message)
-            time.sleep(RETRY_PERIOD)
+            if ya_api_response:
+                timestamp = ya_api_response.get('current_date')
+            time.sleep(settings.RETRY_PERIOD)
 
 
 if __name__ == '__main__':
