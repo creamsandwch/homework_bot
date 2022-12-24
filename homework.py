@@ -8,11 +8,9 @@ import requests
 import telegram
 from dotenv import load_dotenv
 
-import settings
+from settings import RETRY_PERIOD, HOMEWORK_VERDICTS, ENDPOINT
 from exceptions import NoNewStatus
 
-
-RETRY_PERIOD = settings.RETRY_PERIOD
 
 log_format = (
     '%(asctime)s, %(levelname)s, %(funcName)s, '
@@ -40,9 +38,6 @@ PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 
-
-ENDPOINT = settings.ENDPOINT
-HOMEWORK_VERDICTS = settings.HOMEWORK_VERDICTS
 HEADERS = {'Authorization': f'OAuth {PRACTICUM_TOKEN}'}
 
 
